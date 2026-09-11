@@ -22,5 +22,5 @@ BeanRunner es un administrador de tareas que permite registrar, ejecutar, superv
 ### Pasos para la ejecución
 1. **Clonar el repositorio:**
    ```bash
-   git clone [https://github.com/AdminAlvarez/BeanRunner.git](https://github.com/AdminAlvarez/BeanRunner.git)
+   git clone https://github.com/AdminAlvarez/BeanRunner.git
    cd BeanRunner
