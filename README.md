@@ -1,26 +1,42 @@
-# BeanRunner
-## Propósito del Proyecto
-BeanRunner es un administrador de tareas que permite registrar, ejecutar, supervisar y controlar trabajos del sistema operativo en equipos Linux 
+# BeanRunner 🫘
+
+Plataforma ligera de gestión y ejecución de trabajos en segundo plano para sistemas Linux, desarrollada como parte de la materia de **Programación de Sistemas Avanzados (2026B)** en CUCEI, Universidad de Guadalajara.
 
 ---
 
-## Integrantes del Equipo
-* **Alvarez Orozco Admin** - *Lider / Gestión: coordina entregas y tiempos (Scrum master)* - [@AdminAlvarez](https://github.com/AdminAlvarez)
-* **Alvarado Ahedo Alan Ricardo** - *Técnico de Datos / Asegura la recuperación de información* - [@AlanAlvarado23](https://github.com/AlanAlvarado23)
-* **Avila Arellano Bryan Aaron** - *Ingeniero de Red y CLI/ Diseña interfaz de línea de comandos* - [@AviAre16](https://github.com/AviAre16)
-* **Ortega Gutiérrez Franco Josep** - *Q&A DEVOPS / Administrador de repositorio, reportes y guías* - [@FrancoJOG](https://github.com/FrancoJOG)
+## 📌 Propósito del Proyecto
+
+**BeanRunner** es un servicio (demonio) y cliente de línea de comandos diseñado para registrar, ejecutar, supervisar y controlar trabajos del sistema operativo en entornos Linux con concurrencia controlada, gestión estricta de procesos, captura de salidas (`stdout`/`stderr`), persistencia y tolerancia a fallos.
 
 ---
 
-## Construcción Provisional / Configuración Local
+## 👥 Integrantes del Equipo (Beanner)
 
-> **Nota:** El proyecto se encuentra actualmente en fase de desarrollo preliminar. Las instrucciones a continuación muestran cómo clonar y ejecutar la versión provisional.
+| Integrante | Rol Principal | Módulo Técnico Base | GitHub |
+| :--- | :--- | :--- | :--- |
+| **Alvarez Orozco Admin** | Líder de Proyecto & Scrum Master | Motor de Procesos y Concurrencia (`fork`/`exec`) | [@AdminAlvarez](https://github.com/AdminAlvarez) |
+| **Avila Arellano Bryan Aaron** | Ingeniero de Redes & CLI | Interfaz CLI y Protocolo de Red Sockets TCP | [@AviAre16](https://github.com/AviAre16) |
+| **Alvarado Ahedo Alan Ricardo** | Guardián de Datos | Persistencia, Logs, Captura `stdout`/`stderr` y Recuperación | [@AlanAlvarado23](https://github.com/AlanAlvarado23) |
+| **Ortega Gutiérrez Franco Josep** | QA Lead, Git Admin & DevOps | Automatización de Pruebas, Trazabilidad y Repositorio | [@FrancoJOG](https://github.com/FrancoJOG) |
 
-### Prerrequisitos
-* [Python 3.10+]
+---
 
-### Pasos para la ejecución
-1. **Clonar el repositorio:**
-   ```bash
-   git clone https://github.com/AdminAlvarez/BeanRunner.git
-   cd BeanRunner
+## 🛠️ Prerrequisitos y Tecnologías
+
+El proyecto está desarrollado bajo el paradigma de **Programación Orientada a Objetos** en **C++17** y **Programación de Sistemas Linux (API POSIX)**.
+
+* **Sistema Operativo:** Linux (Ubuntu 22.04 LTS / 24.04 LTS nativo o mediante **WSL2** en Windows 10/11).
+* **Compilador:** `g++` (versión 11 o superior) con soporte para C++17.
+* **Herramientas de Construcción y Depuración:** `make`, `gdb`, `git`.
+* **Editor Recomendado:** Visual Studio Code (con extensión WSL).
+
+---
+
+## 🚀 Guía de Instalación y Configuración del Entorno (Windows / WSL2)
+
+Este proyecto cumple con el requisito **RNF-01** (ejecución nativa en Linux) y **RNF-02** (construcción reproducible).
+
+### 1. Instalación de Ubuntu mediante WSL2 en Windows
+1. Abre **PowerShell** como Administrador en Windows y ejecuta:
+   ```powershell
+   wsl --install -d Ubuntu
