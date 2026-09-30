@@ -2,77 +2,75 @@ import logging
 import shlex
 import threading
 import uuid
-from typing import List, Dict, Union, Tuple, Optional
-from models import Job, JobStatus
+from typing import TypeAlias
 
-# Configuración de bitácora según RF-14
+from .models import Job, JobStatus
+
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] [JobRunner] %(message)s"
+    format="%(asctime)s [%(levelname)s] [JobRunner] %(message)s",
 )
 logger = logging.getLogger("JobSubmitter")
 
+
+RawCommand: TypeAlias = str | list[str] | None
+
+
 class JobSubmitter:
-    """
-    Módulo encargado de la validación y recepción de trabajos,
-    asignación de UUIDs únicos (RF-01, RF-02).
-    """
+    """Validate job submissions and assign unique identifiers."""
 
-    def __init__(self, job_storage: Optional[Dict[str, Job]] = None):
-        # Almacenamiento central (o referencia a la cola compartida)
-        self.jobs: Dict[str, Job] = job_storage if job_storage is not None else {}
-        self._lock = threading.Lock()  # Garantiza Thread-Safety (RNF-27)
+    def __init__(self, job_storage: dict[str, Job] | None = None) -> None:
+        self.jobs = job_storage if job_storage is not None else {}
+        self._lock = threading.Lock()
 
-    def validate_command(self, raw_command: Union[str, List[str]]) -> List[str]:
-        """
-        RF-02: Valida la solicitud y rechaza entradas vacías o malformadas.
-        """
+    def validate_command(self, raw_command: RawCommand) -> list[str]:
+        """Reject empty or malformed commands and return parsed arguments."""
         if raw_command is None:
             raise ValueError("RF-02: El comando no puede ser nulo (None).")
 
-        # Si el usuario envía una cadena limpia (ej. "ls -la /tmp")
         if isinstance(raw_command, str):
             cleaned = raw_command.strip()
             if not cleaned:
                 raise ValueError("RF-02: El comando no puede estar vacío.")
             try:
-                # Divide respetando comillas 
-                parsed_args = shlex.split(cleaned)
-            except ValueError as e:
-                raise ValueError(f"RF-02: Comando malformado o comillas sin cerrar: {e}")
+                parsed_args = shlex.split(cleaned, posix=True)
+            except ValueError as error:
+                raise ValueError(
+                    f"RF-02: Comando malformado o comillas sin cerrar: {error}"
+                ) from error
         elif isinstance(raw_command, list):
             if not raw_command:
                 raise ValueError("RF-02: La lista de comandos no puede estar vacía.")
-            parsed_args = [str(arg).strip() for arg in raw_command if str(arg).strip()]
+            if any(not isinstance(argument, str) for argument in raw_command):
+                raise ValueError("RF-02: Todos los argumentos deben ser texto.")
+            parsed_args = [argument.strip() for argument in raw_command if argument.strip()]
             if not parsed_args:
-                raise ValueError("RF-02: Todos los argumentos de la lista estaban vacíos.")
+                raise ValueError(
+                    "RF-02: Todos los argumentos de la lista estaban vacíos."
+                )
         else:
-            raise ValueError("RF-02: Formato no soportado. Debe ser string o list.")
+            raise ValueError(
+                "RF-02: Formato no soportado. Debe ser string o list."
+            )
+
+        if not parsed_args:
+            raise ValueError("RF-02: El comando no puede estar vacío.")
 
         return parsed_args
 
-    def submit_job(self, raw_command: Union[str, List[str]]) -> Tuple[str, Job]:
-        """
-        RF-01: Acepta un comando con sus argumentos y devuelve un ID único.
-        """
-        # 1. Validación de entradas (RF-02)
+    def submit_job(self, raw_command: RawCommand) -> tuple[str, Job]:
+        """Accept a valid command and return its unique ID and queued job."""
         valid_args = self.validate_command(raw_command)
-
-        # 2. Generación de Identificador Único (UUID v4) (RF-01)
         job_id = str(uuid.uuid4())
-
-        # 3. Instanciación del objeto Job
-        new_job = Job(
-            id=job_id,
-            command=valid_args,
-            status=JobStatus.QUEUED
-        )
-
-        # 4. Registro seguro en memoria compartida (RNF-27)
+        new_job = Job(id=job_id, command=valid_args, status=JobStatus.QUEUED)
         with self._lock:
             self.jobs[job_id] = new_job
 
-        # 5. Bitácora de auditoría (RF-14)
-        logger.info(f"Trabajo aceptado con éxito | Job ID: {job_id} | Comando: '{' '.join(valid_args)}'")
+        logger.info(
+            "Trabajo aceptado con éxito | Job ID: %s | Comando: %r",
+            job_id,
+            valid_args,
+        )
 
         return job_id, new_job

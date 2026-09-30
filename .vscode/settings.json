@@ -1,0 +1,5 @@
+{
+  "python.defaultInterpreterPath": "python3",
+  "python.testing.unittestEnabled": true,
+  "python.testing.pytestEnabled": false
+}
