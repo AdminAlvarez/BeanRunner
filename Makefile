@@ -1,32 +1,20 @@
-# Makefile oficial - Equipo Beanner
-CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -Werror -pedantic
-SRC_DIR = src
-OBJ_DIR = obj
-BIN_DIR = bin
+PYTHON ?= python3
 
-TARGET = $(BIN_DIR)/jobrunnerd
-SRCS = $(SRC_DIR)/main.cpp
-OBJS = $(patsubst $(SRC_DIR)/%.cpp, $(OBJ_DIR)/%.o, $(SRCS))
+.PHONY: all check run test clean re
 
-all: $(TARGET)
+all: check
 
-$(TARGET): $(OBJS) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TARGET)
+check:
+	$(PYTHON) -c "from pathlib import Path; files = [*Path('src').rglob('*.py'), *Path('tests').rglob('*.py'), *Path('verif/scripts').rglob('*.py')]; [compile(path.read_text(encoding='utf-8'), str(path), 'exec') for path in files]"
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+run:
+	$(PYTHON) -m src.main
 
-$(BIN_DIR) $(OBJ_DIR):
-	mkdir -p $@
+test:
+	$(PYTHON) -m unittest discover -s tests -v
+	$(PYTHON) verif/scripts/verify_hito1.py
 
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR)
+	$(PYTHON) -c "import pathlib, shutil; roots = ('src', 'tests', 'verif/scripts'); [shutil.rmtree(path) for root in roots for path in pathlib.Path(root).rglob('__pycache__') if path.is_dir()]"
 
 re: clean all
-
-test: all
-	@echo "Ejecutando script de verificación de QA..."
-	@bash verif/scripts/verify_hito1.sh
-
-.PHONY: all clean re test
