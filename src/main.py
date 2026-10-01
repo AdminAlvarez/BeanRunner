@@ -1,38 +1,42 @@
-import argparse
+import sys
+import time
 
 from .job_runner import JobRunner
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="BeanRunner - Job Runner"
-    )
-
-    parser.add_argument(
-        "--demo",
-        action="store_true",
-        help="Ejecuta una demostración del sistema"
-    )
-
-    args = parser.parse_args()
 
     runner = JobRunner()
 
-    if args.demo:
-        print("=== BeanRunner ===")
-        print("JobRunner iniciado")
+    job = runner.submit_job([
+        sys.executable,
+        "src/job_tests/long_job.py"
+    ])
 
-        job = runner.submit_job([
-            "python3",
-            "src/test-jobs/simple_job.py"
-        ])
+    print(f"Job creado: {job.id}")
+    print(f"Estado inicial: {job.status.value}")
 
-        print(f"Job creado: {job.id}")
-        print(f"Estado: {job.status.value}")
+    runner.execute_job(job.id)
 
-    else:
-        print("BeanRunner iniciado")
-        print("Use --demo para ejecutar una demostración")
+    print(f"PID: {job.pid}")
+    print(f"Estado después de ejecutar: {job.status.value}")
+
+    while True:
+
+        time.sleep(1)
+
+        status = runner.get_status(job.id)
+
+        print(f"Estado actual: {status.value}")
+
+        if status.value in ["SUCCEEDED", "FAILED", "CANCELED"]:
+            break
+
+    print("\n--- RESULTADO ---")
+    print(f"Estado final: {job.status.value}")
+    print(f"Código de salida: {job.exit_code}")
+    print(f"STDOUT:\n{job.stdout}")
+    print(f"STDERR:\n{job.stderr}")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,3 @@
-# job.py
-
 from enum import Enum
 from datetime import datetime
 import uuid

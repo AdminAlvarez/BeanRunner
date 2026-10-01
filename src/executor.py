@@ -1,15 +1,16 @@
 import subprocess
+import threading
 from datetime import datetime
 
-from job import Job, JobStatus
+from .job import Job, JobStatus
 
 
 class JobExecutor:
 
-    def execute(self, job: Job):
+    def __init__(self):
+        self.processes = {}
 
-        job.status = JobStatus.RUNNING
-        job.started_at = datetime.now()
+    def execute(self, job: Job):
 
         process = subprocess.Popen(
             job.command,
@@ -19,6 +20,20 @@ class JobExecutor:
         )
 
         job.pid = process.pid
+        job.started_at = datetime.now()
+        job.status = JobStatus.RUNNING
+
+        self.processes[job.id] = process
+
+        monitor = threading.Thread(
+            target=self._monitor_process,
+            args=(job, process),
+            daemon=True
+        )
+
+        monitor.start()
+
+    def _monitor_process(self, job: Job, process):
 
         stdout, stderr = process.communicate()
 
@@ -32,4 +47,7 @@ class JobExecutor:
         else:
             job.status = JobStatus.FAILED
 
-        return job
+        del self.processes[job.id]
+
+    def get_process(self, job_id):
+        return self.processes.get(job_id)
