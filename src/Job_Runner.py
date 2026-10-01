@@ -1,12 +1,18 @@
-from job_tests.test_manager import get_tests_paths
+# job_runner.py
 
-class Job_Runner:
-    def __init__(self, id=None, status=None):
-        
-        self.job_examples = get_tests_paths()
-        
-        self.id = None
-        self.status = None
-        
-A = Job_Runner()
-print(A.job_examples)
+from .job import Job
+
+
+class JobRunner:
+
+    def __init__(self):
+        self.jobs = {}
+        self.queue = []
+
+    def submit_job(self, command):
+        job = Job(command)
+
+        self.jobs[job.id] = job
+        self.queue.append(job.id)
+
+        return job
