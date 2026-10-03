@@ -1,11 +1,15 @@
 import unittest
+import threading
+
+from src.executor import JobExecutor
 from src.models import Job, JobStatus
 from src.manager import JobManager
+
 
 class JobManagerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.jobs: dict[str, Job] = {}
-        self.manager = JobManager(self.jobs)
+        self.manager = JobManager(self.jobs, JobExecutor(), threading.RLock())
 
     def test_lists_jobs_empty(self) -> None:
         self.assertEqual(self.manager.list_jobs(), [])

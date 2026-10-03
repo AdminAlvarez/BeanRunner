@@ -32,9 +32,10 @@ class Job:
     error_message: str | None = None
     stdout: str = ""
     stderr: str = ""
+    cancel_requested: bool = False
 
     def to_dict(self) -> dict[str, Any]:
-        """Soporte para serialización/persistencia (RF-12)."""
+        """Return the job metadata in a JSON-compatible form."""
         return {
             "id": self.id,
             "command": self.command,
@@ -45,4 +46,6 @@ class Job:
             "exit_code": self.exit_code,
             "pid": self.pid,
             "error_message": self.error_message,
+            "stdout": self.stdout,
+            "stderr": self.stderr,
         }

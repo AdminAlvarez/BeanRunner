@@ -14,18 +14,17 @@ logging.basicConfig(
 logger = logging.getLogger("JobSubmitter")
 
 
-RawCommand: TypeAlias = str | list[str] | None
-
+RawCommand: TypeAlias = str | list[str] | None  # Texto, lista de argumentos o None.
 
 class JobSubmitter:
-    """Validate job submissions and assign unique identifiers."""
+    """Valida solicitudes y asigna identificadores únicos a los trabajos."""
 
     def __init__(self, job_storage: dict[str, Job] | None = None) -> None:
         self.jobs = job_storage if job_storage is not None else {}
         self._lock = threading.Lock()
 
     def validate_command(self, raw_command: RawCommand) -> list[str]:
-        """Reject empty or malformed commands and return parsed arguments."""
+        """Rechaza entradas inválidas y devuelve el comando separado en argumentos."""
         if raw_command is None:
             raise ValueError("RF-02: El comando no puede ser nulo (None).")
 
@@ -34,6 +33,7 @@ class JobSubmitter:
             if not cleaned:
                 raise ValueError("RF-02: El comando no puede estar vacío.")
             try:
+                # shlex respeta las comillas, pero no ejecuta el texto como shell.
                 parsed_args = shlex.split(cleaned, posix=True)
             except ValueError as error:
                 raise ValueError(
@@ -59,12 +59,15 @@ class JobSubmitter:
 
         return parsed_args
 
+
     def submit_job(self, raw_command: RawCommand) -> tuple[str, Job]:
-        """Accept a valid command and return its unique ID and queued job."""
+        """Registra una solicitud válida y devuelve su ID y objeto Job."""
+        # Validar antes de generar el ID evita registros para solicitudes rechazadas.
         valid_args = self.validate_command(raw_command)
         job_id = str(uuid.uuid4())
         new_job = Job(id=job_id, command=valid_args, status=JobStatus.QUEUED)
         with self._lock:
+            # El lock protege el almacenamiento compartido ante envíos concurrentes.
             self.jobs[job_id] = new_job
 
         logger.info(
