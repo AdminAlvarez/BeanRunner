@@ -39,10 +39,32 @@ class JobSubmitterTests(unittest.TestCase):
 
         for command in invalid_commands:
             with self.subTest(command=command):
-                with self.assertRaises(ValueError):
+                with self.assertRaisesRegex(ValueError, "RF-02"):
                     self.submitter.submit_job(command)
 
         self.assertEqual(self.submitter.jobs, {})
+
+    def test_valid_submission_succeeds_after_invalid_commands(self) -> None:
+        invalid_commands = (
+            "",
+            "   ",
+            'echo "unfinished',
+            [" ", ""],
+            ["echo", 1],
+        )
+
+        for command in invalid_commands:
+            with self.subTest(command=command):
+                with self.assertRaises(ValueError):
+                    self.submitter.submit_job(command)
+                self.assertEqual(self.submitter.jobs, {})
+
+        job_id, job = self.submitter.submit_job(["echo", "still available"])
+
+        self.assertEqual(job.id, job_id)
+        self.assertEqual(job.command, ["echo", "still available"])
+        self.assertEqual(job.status, JobStatus.QUEUED)
+        self.assertEqual(self.submitter.jobs, {job_id: job})
 
 
 if __name__ == "__main__":
