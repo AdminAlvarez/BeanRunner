@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
+from uuid import uuid4
 
 
 class JobStatus(str, Enum):
@@ -18,8 +19,8 @@ class JobStatus(str, Enum):
 class Job:
     """Estructura de metadatos del trabajo."""
 
-    id: str
     command: list[str]
+    id: str = field(default_factory=lambda: str(uuid4()))
     status: JobStatus = JobStatus.QUEUED
     created_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
@@ -29,6 +30,8 @@ class Job:
     exit_code: int | None = None
     pid: int | None = None
     error_message: str | None = None
+    stdout: str = ""
+    stderr: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Soporte para serialización/persistencia (RF-12)."""
