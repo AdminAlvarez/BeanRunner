@@ -21,16 +21,16 @@ Este documento describe la máquina de estados y las invariantes del ciclo de vi
 
 ```mermaid
 stateDiagram-v2
-    [*] --> QUEUED : Enviar trabajo (RF-01, RF-02)
+    [*] --> QUEUED : Enviar trabajo
 
-    QUEUED --> RUNNING : Scheduler asigna slot (RF-04, RF-05)
-    QUEUED --> FAILED : Falla al invocar ejecutable, pid = null (RF-04, RF-29)
-    QUEUED --> CANCELED : Cancelar trabajo en cola, started_at y pid = null (RF-10)
+    QUEUED --> RUNNING : Scheduler asigna slot 
+    QUEUED --> FAILED : Falla al invocar ejecutable, pid = null 
+    QUEUED --> CANCELED : Cancelar trabajo en cola, started_at y pid = null 
 
-    RUNNING --> SUCCEEDED : Termina con exit_code = 0 (RF-06, RF-07)
-    RUNNING --> FAILED : Termina con exit_code != 0 o crash (RF-06, RF-29)
-    RUNNING --> CANCELED : Cancelar trabajo activo, SIGTERM / SIGKILL (RF-10, RF-30)
-    RUNNING --> INTERRUPTED : Reinicio o caída del Daemon (RF-13, RNF-10, RNF-31)
+    RUNNING --> SUCCEEDED : Termina con exit_code = 0 
+    RUNNING --> FAILED : Termina con exit_code != 0 o crash 
+    RUNNING --> CANCELED : Cancelar trabajo activo, SIGTERM / SIGKILL 
+    RUNNING --> INTERRUPTED : Reinicio o caída del Daemon 
 
     SUCCEEDED --> [*]
     FAILED --> [*]
