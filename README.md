@@ -51,6 +51,12 @@ Esto inicia el punto de entrada. Para ver ejemplos de validación y recepción d
 python3 -m src.main --demo
 ```
 
+El receptor acepta un comando como texto (separado respetando comillas, sin
+expansiones de shell) o como una lista de argumentos de texto, por ejemplo:
+`"python3 -c \"print('hola')\""` o `["python3", "-c", "print('hola')"]`.
+Rechaza valores vacíos, argumentos no textuales y cadenas con comillas sin
+cerrar sin registrar un trabajo.
+
 O usa los atajos del `Makefile`:
 
 ```bash
