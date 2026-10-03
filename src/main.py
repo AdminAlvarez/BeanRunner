@@ -51,7 +51,7 @@ def run_job_demo() -> None:
     print(f"Estado después de ejecutar: {job.status.value}")
 
     while True:
-        time.sleep(0.1)
+        time.sleep(1)
         status = runner.get_status(job.id)
         if status is None:
             raise RuntimeError(f"No se encontró el trabajo {job.id}")
