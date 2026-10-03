@@ -1,8 +1,8 @@
 import subprocess
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 
-from .job import Job, JobStatus
+from .models import Job, JobStatus
 
 
 class JobExecutor:
@@ -11,16 +11,21 @@ class JobExecutor:
         self.processes = {}
 
     def execute(self, job: Job):
-
-        process = subprocess.Popen(
-            job.command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
+        try:
+            process = subprocess.Popen(
+                job.command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except OSError as error:
+            job.status = JobStatus.FAILED
+            job.error_message = str(error)
+            job.finished_at = datetime.now(timezone.utc).isoformat()
+            return
 
         job.pid = process.pid
-        job.started_at = datetime.now()
+        job.started_at = datetime.now(timezone.utc).isoformat()
         job.status = JobStatus.RUNNING
 
         self.processes[job.id] = process
@@ -40,14 +45,15 @@ class JobExecutor:
         job.stdout = stdout
         job.stderr = stderr
         job.exit_code = process.returncode
-        job.finished_at = datetime.now()
+        job.finished_at = datetime.now(timezone.utc).isoformat()
 
-        if process.returncode == 0:
-            job.status = JobStatus.SUCCEEDED
-        else:
-            job.status = JobStatus.FAILED
+        if job.status != JobStatus.CANCELED:
+            if process.returncode == 0:
+                job.status = JobStatus.SUCCEEDED
+            else:
+                job.status = JobStatus.FAILED
 
-        del self.processes[job.id]
+        self.processes.pop(job.id, None)
 
     def get_process(self, job_id):
         return self.processes.get(job_id)

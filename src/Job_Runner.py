@@ -1,20 +1,19 @@
-from .job import Job, JobStatus
+from .models import Job, JobStatus
 from .executor import JobExecutor
+from .submitter import JobSubmitter
 
 
 class JobRunner:
 
     def __init__(self):
-        self.jobs = {}
+        self.jobs: dict[str, Job] = {}
         self.queue = []
 
+        self.submitter = JobSubmitter(self.jobs)
         self.executor = JobExecutor()
 
     def submit_job(self, command):
-
-        job = Job(command)
-
-        self.jobs[job.id] = job
+        _, job = self.submitter.submit_job(command)
         self.queue.append(job.id)
 
         return job
