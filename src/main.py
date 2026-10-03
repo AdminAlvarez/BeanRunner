@@ -9,7 +9,6 @@ from .Job_Runner import JobRunner
 from .models import JobStatus
 from .submitter import JobSubmitter
 
-
 DEMO_COMMANDS: tuple[str | list[str], ...] = (
     "sleep 10",
     "python3 -c \"print('Hola Mundo')\"",
@@ -18,7 +17,6 @@ DEMO_COMMANDS: tuple[str | list[str], ...] = (
     "   ",
     'echo "comillas sin cerrar',
 )
-
 
 def run_submission_demo() -> None:
     """Exercise the RF-01/RF-02 submission examples without running commands."""
@@ -35,7 +33,6 @@ def run_submission_demo() -> None:
             print(f"  [PASS] Asignado ID único: {job_id}")
             print(f"  [INFO] Estado inicial: {job.status.value}")
 
-
 def run_job_demo() -> None:
     """Run a local sample process and report its final status and output."""
     runner = JobRunner()
@@ -50,21 +47,28 @@ def run_job_demo() -> None:
     print(f"PID: {job.pid}")
     print(f"Estado después de ejecutar: {job.status.value}")
 
-    while True:
-        time.sleep(1)
-        status = runner.get_status(job.id)
-        if status is None:
-            raise RuntimeError(f"No se encontró el trabajo {job.id}")
-        print(f"Estado actual: {status.value}")
-        if status in (JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELED):
-            break
+    time.sleep(1)
+
+    # LISTADO PARA VER EL TRABAJO CORRIENDO
+    print("\n--- Listado de Trabajos Activos (RF-09) ---")
+    print(runner.manager.format_table(runner.manager.list_jobs()))
+
+    # CANCELACIÓN
+    print("\n--- Cancelación Intermedia (RF-10) ---")
+    success, msg = runner.manager.cancel_job(job.id)
+    print(f"[{'PASS' if success else 'FAIL'}] {msg}")
+
+    time.sleep(1)
+
+    # LISTADO PARA VERIFICAR LA CANCELACIÓN
+    print("\n--- Listado Post-Cancelación ---")
+    print(runner.manager.format_table(runner.manager.list_jobs()))
 
     print("\n--- RESULTADO ---")
     print(f"Estado final: {job.status.value}")
     print(f"Código de salida: {job.exit_code}")
     print(f"STDOUT:\n{job.stdout}")
     print(f"STDERR:\n{job.stderr}")
-
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="BeanRunner JobRunner")
@@ -88,7 +92,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print("[BeanRunner] Servicio JobRunner inicializado correctamente.")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
