@@ -1,66 +1,55 @@
-# Modelo Preliminar de Estados (RF-06)
+# Modelo de estados de los trabajos (RF-06)
 
-Este documento describe la máquina de estados y las invariantes del ciclo de vida de los trabajos en **JobRunner**. Cada trabajo nace en `QUEUED`, puede pasar por `RUNNING` y termina en exactamente un estado terminal.
+Este documento describe los estados implementados en BeanRunner para el Hito 1
+y distingue las funciones futuras que todavía no tienen persistencia.
 
-## 1. Definición de Estados
+## Estados implementados
 
-| Estado | Tipo | Qué significa | Cuándo ocurre | Metadatos registrados |
-| :--- | :--- | :--- | :--- | :--- |
-| **`QUEUED`** | Inicial | El trabajo fue validado y aceptado; espera un slot libre. | Al enviar un comando válido. | `id`, `command`, `created_at`, `status` |
-| **`RUNNING`** | Activo | El proceso se está ejecutando en el sistema operativo (`fork`/`Popen`). | Cuando el scheduler asigna un slot y el proceso se instancia correctamente. | `started_at`, `pid`, `status` |
-| **`SUCCEEDED`** | Terminal | El proceso terminó por sí solo y sin errores. | `exit_code == 0`. | `finished_at`, `exit_code` (0), `stdout`, `stderr` |
-| **`FAILED`** | Terminal | El trabajo terminó con error o no pudo iniciarse. | Desde `RUNNING`: `exit_code != 0` o crash. Desde `QUEUED`: falla al invocar el ejecutable (no existe, `EACCES` o comando malformado en `fork`/`exec`). | `finished_at`, `exit_code`, `error_message`, `stderr`. <br>Si falla desde `QUEUED`: `pid = null`, `started_at = null`. |
-| **`CANCELED`** | Terminal | El usuario detuvo el trabajo antes de que terminara. | Solicitud `cancel`, en cola o en ejecución (en ejecución usa señales POSIX). | `finished_at`, `exit_code`/señal, `canceled_at`. <br>Si se cancela desde `QUEUED`: `started_at = null`, `pid = null`, porque el proceso nunca se instanció. |
-| **`INTERRUPTED`** | Terminal | El trabajo estaba en ejecución cuando el Daemon se reinició o cayó. | Detección al recuperar el servicio. | `finished_at`, `error_message` |
+| Estado | Tipo | Significado | Transición |
+|---|---|---|---|
+| `QUEUED` | Inicial / espera | El comando se validó y espera un espacio de ejecución. | Envío válido o espera detrás del límite de concurrencia. |
+| `RUNNING` | Activo | El proceso hijo fue iniciado y se está supervisando. | El proceso terminó o se solicitó su cancelación. |
+| `SUCCEEDED` | Terminal | El proceso terminó correctamente. | Código de salida igual a `0`. |
+| `FAILED` | Terminal | El proceso terminó con error o no pudo iniciarse. | Código de salida distinto de `0` o error de lanzamiento. |
+| `CANCELED` | Terminal | Se canceló un trabajo en cola o se terminó su proceso hijo activo. | Cancelación solicitada por el usuario o al cerrar la CLI. |
 
-> **Tipos de estado:** *Inicial* = punto de entrada · *Activo* = en curso, puede cambiar · *Terminal* = final, no admite más transiciones.
+Cada trabajo en memoria conserva su ID, comando, estado, timestamps, PID si se
+inició el proceso, código de salida y `stdout`/`stderr`. Los resultados se
+pierden al cerrar la aplicación: la persistencia y recuperación no forman parte
+de la implementación actual.
 
----
-
-## 2. Diagrama de Transición de Estados
+## Diagrama de transición implementado
 
 ```mermaid
 stateDiagram-v2
-    [*] --> QUEUED : Enviar trabajo
-
-    QUEUED --> RUNNING : Scheduler asigna slot 
-    QUEUED --> FAILED : Falla al invocar ejecutable, pid = null 
-    QUEUED --> CANCELED : Cancelar trabajo en cola, started_at y pid = null 
-
-    RUNNING --> SUCCEEDED : Termina con exit_code = 0 
-    RUNNING --> FAILED : Termina con exit_code != 0 o crash 
-    RUNNING --> CANCELED : Cancelar trabajo activo, SIGTERM / SIGKILL 
-    RUNNING --> INTERRUPTED : Reinicio o caída del Daemon 
-
+    [*] --> QUEUED : Solicitud válida
+    QUEUED --> RUNNING : Se libera un espacio de ejecución
+    QUEUED --> FAILED : No se puede iniciar el proceso
+    QUEUED --> CANCELED : Cancelar antes de ejecutar
+    RUNNING --> SUCCEEDED : Código de salida 0
+    RUNNING --> FAILED : Código de salida distinto de 0
+    RUNNING --> CANCELED : Solicitar terminación del proceso
     SUCCEEDED --> [*]
     FAILED --> [*]
     CANCELED --> [*]
-    INTERRUPTED --> [*]
 ```
 
----
+## Invariantes
 
-## 3. Matriz de Transiciones
+1. Solo las solicitudes válidas crean un trabajo.
+2. Cada trabajo tiene un ID único y comienza en `QUEUED`.
+3. El número de procesos activos no supera `max_concurrency` (por defecto 3).
+4. El proceso se ejecuta sin shell implícito y sus flujos se recolectan por
+   separado.
+5. Un trabajo terminado registra `finished_at` y, si se inició un proceso, su
+   código de salida.
+6. Los estados terminales implementados son `SUCCEEDED`, `FAILED` y
+   `CANCELED`.
 
-| Estado origen | Disparador | Condición | Estado destino | Requisito |
-| :--- | :--- | :--- | :--- | :--- |
-| — | Solicitud CLI/API | Comando válido | `QUEUED` | RF-01, RF-02, RF-03 |
-| `QUEUED` | Slot libre | Trabajos activos < `max_concurrency` | `RUNNING` | RF-04, RF-05 |
-| `QUEUED` | Slot libre | Falla en `fork`/`exec`: ejecutable inexistente, sin permisos (`EACCES`) o comando malformado | `FAILED` (`pid = null`, con `error_message`) | RF-04, RF-29 |
-| `QUEUED` | Solicitud `cancel` | Trabajo aún en cola | `CANCELED` (`started_at = null`, `pid = null`) | RF-10 |
-| `RUNNING` | Proceso finaliza | `exit_code == 0` | `SUCCEEDED` | RF-06, RF-07, RF-11 |
-| `RUNNING` | Proceso finaliza | `exit_code != 0` | `FAILED` | RF-06, RF-07, RF-29 |
-| `RUNNING` | Solicitud `cancel` | Proceso activo | `CANCELED` | RF-10, RF-30 |
-| `RUNNING` | Reinicio del Daemon | Recuperación tras caída | `INTERRUPTED` | RF-13, RNF-10, RNF-31 |
+## Recuperación futura
 
----
-
-## 4. Invariantes del Ciclo de Vida
-
-1. Todo trabajo inicia en `QUEUED`; no existe otra forma de crearlo.
-2. Los estados terminales (`SUCCEEDED`, `FAILED`, `CANCELED`, `INTERRUPTED`) son definitivos: no hay transiciones de salida.
-3. Un trabajo está en un solo estado a la vez.
-4. Solo los trabajos en `RUNNING` tienen un proceso activo, y su cantidad nunca excede `max_concurrency`.
-5. `started_at` y `pid` solo existen si el proceso llegó a instanciarse. Un trabajo que pasa de `QUEUED` a `FAILED` (falla de invocación) o a `CANCELED` (cancelación en cola) conserva ambos en `null`/`None`.
-6. Todo estado terminal registra `finished_at`.
-7. Una falla de invocación (`fork`/`exec`) nunca pasa por `RUNNING`: va directo de `QUEUED` a `FAILED` con su `error_message`.
+`INTERRUPTED` se propuso para reconocer trabajos que estuvieran ejecutándose
+durante el reinicio o caída del daemon. No forma parte del enum ni del flujo
+actual: no hay daemon persistente ni recuperación de historial todavía. Se
+deberá añadir junto con la persistencia (RF-12/RF-13), no reportar como
+funcionalidad ya implementada.
