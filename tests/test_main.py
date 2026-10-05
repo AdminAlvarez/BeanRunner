@@ -1,3 +1,4 @@
+import shlex
 import subprocess
 import sys
 import unittest
@@ -45,9 +46,12 @@ class MainTests(unittest.TestCase):
 
     def test_interactive_mode_recovers_from_invalid_command_and_accepts_job(self) -> None:
         runner = JobRunner()
+        python_command = shlex.join(
+            [sys.executable, "-c", "print('cli funciona')"]
+        )
         commands = StringIO(
             'submit echo "comillas incompletas\n'
-            "submit python -c \"print('cli funciona')\"\n"
+            f"submit {python_command}\n"
             "list\n"
             "exit\n"
         )
