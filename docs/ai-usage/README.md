@@ -15,6 +15,7 @@ revisar el código que presentará y poder explicar su funcionamiento.
 | Registro | Tema |
 |---|---|
 | [AI-001 — Completar el flujo local del Hito 1](AI-001-hito1-completion.md) | Integración del ejecutor, CLI, documentación y validación de la versión local. |
+| [Registro personal — Franco Joseph Ortega Gutiérrez](AI-Franco-Joseph-Ortega-Gutierrez.md) | Usos de IA para comprender requisitos, implementar y verificar funciones, gestionar Git y documentar el proyecto, con justificación personal. |
 
 ## Criterio de uso
 
