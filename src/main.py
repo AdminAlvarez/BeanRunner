@@ -10,7 +10,7 @@ from typing import TextIO
 
 from .Job_Runner import JobRunner
 from .models import Job, JobStatus
-from .submitter import JobSubmitter
+from .submitter import InvalidCommandError, JobSubmitter
 
 
 # Entradas usadas solo por --demo para mostrar validación; no se ejecutan.
@@ -42,6 +42,7 @@ Ejemplo: submit python -c "print('hola')"
 """
 
 
+
 def run_submission_demo() -> None:
     """Muestra la validación del JobSubmitter sin iniciar procesos hijos."""
     # Esta demostración prueba recepción; la CLI normal usa JobRunner completo.
@@ -51,11 +52,11 @@ def run_submission_demo() -> None:
     for command in DEMO_COMMANDS:
         print(f"\nProcesando entrada: {command!r}")
         try:
-            job_id, job = submitter.submit_job(command)
-        except ValueError as error:
+            job = submitter.submit_job(command)
+        except InvalidCommandError as error:
             print(f"  [RECHAZADO] Error detectado (RF-02): {error}")
         else:
-            print(f"  [PASS] Asignado ID único: {job_id}")
+            print(f"  [PASS] Asignado ID único: {job.id}")
             print(f"  [INFO] Estado inicial: {job.status.value}")
 
 
@@ -218,6 +219,7 @@ def interactive_loop(
     job_runner.shutdown()
     print("BeanRunner detenido.", file=output_stream)
     return 0
+
 
 
 def main(argv: Sequence[str] | None = None) -> int:
