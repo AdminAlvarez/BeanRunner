@@ -1,4 +1,4 @@
-"""Command-line entry point and local interactive shell for BeanRunner."""
+"""Punto de entrada y consola interactiva local de BeanRunner."""
 
 import argparse
 import json
@@ -13,6 +13,7 @@ from .models import Job, JobStatus
 from .submitter import JobSubmitter
 
 
+# Entradas usadas solo por --demo para mostrar validación; no se ejecutan.
 DEMO_COMMANDS: tuple[str | list[str], ...] = (
     "sleep 10",
     "python3 -c \"print('Hola Mundo')\"",
@@ -21,6 +22,7 @@ DEMO_COMMANDS: tuple[str | list[str], ...] = (
     "   ",
     'echo "comillas sin cerrar',
 )
+# Estados en los que ya se puede consultar el resultado final del proceso.
 TERMINAL_STATUSES = {
     JobStatus.SUCCEEDED,
     JobStatus.FAILED,
@@ -41,7 +43,8 @@ Ejemplo: submit python -c "print('hola')"
 
 
 def run_submission_demo() -> None:
-    """Demonstrate valid and invalid submissions without running commands."""
+    """Muestra la validación del JobSubmitter sin iniciar procesos hijos."""
+    # Esta demostración prueba recepción; la CLI normal usa JobRunner completo.
     submitter = JobSubmitter()
     print("=== Módulo de Envío de Trabajos (JobRunner - RF-01 & RF-02) ===")
 
@@ -57,7 +60,8 @@ def run_submission_demo() -> None:
 
 
 def run_job_demo() -> None:
-    """Run a long sample, show it running, cancel it, and report its result."""
+    """Muestra un trabajo activo, lo cancela y presenta su resultado."""
+    # La instancia coordina el trabajo con JobExecutor y JobManager.
     runner = JobRunner()
     job = runner.submit_job([sys.executable, "src/job_tests/long_job.py"])
 
@@ -75,7 +79,8 @@ def run_job_demo() -> None:
 
 
 def wait_for_job(runner: JobRunner, job_id: str, timeout: float = 5.0) -> bool:
-    """Wait briefly for a background process to reach a terminal status."""
+    """Espera brevemente a que el trabajo llegue a un estado terminal."""
+    # El deadline evita que una demostración o prueba espere indefinidamente.
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if runner.get_status(job_id) in TERMINAL_STATUSES:
@@ -85,7 +90,8 @@ def wait_for_job(runner: JobRunner, job_id: str, timeout: float = 5.0) -> bool:
 
 
 def print_job_result(job: Job, output: TextIO = sys.stdout) -> None:
-    """Print the final status and captured streams for a job."""
+    """Muestra estado final, código de salida y canales capturados."""
+    # `job` contiene los metadatos que el monitor del executor fue completando.
     print("\n--- RESULTADO ---", file=output)
     print(f"Estado final: {job.status.value}", file=output)
     print(f"Código de salida: {job.exit_code}", file=output)
@@ -98,17 +104,20 @@ def interactive_loop(
     output_stream: TextIO = sys.stdout,
     runner: JobRunner | None = None,
 ) -> int:
-    """Read local commands until exit or end-of-file."""
+    """Lee órdenes y delega cada operación al JobRunner correspondiente."""
+    # Se puede inyectar runner/streams para probar la CLI sin teclado real.
     job_runner = runner if runner is not None else JobRunner()
     print("BeanRunner local. Escribe 'help' para ver comandos.", file=output_stream)
 
     while True:
         print("beanrunner> ", end="", file=output_stream, flush=True)
+        # `line` conserva la orden completa para poder recuperar sus argumentos.
         line = input_stream.readline()
         if not line:
             break
 
         try:
+            # tokens se usa para interpretar la orden y validar su cantidad de args.
             tokens = shlex.split(line)
         except ValueError as error:
             print(f"Error: comando mal formado: {error}", file=output_stream)
@@ -116,6 +125,7 @@ def interactive_loop(
         if not tokens:
             continue
 
+        # `action` es la primera palabra: submit, status, list, cancel, etc.
         action = tokens[0].lower()
         if action in {"exit", "quit"}:
             break
@@ -123,6 +133,8 @@ def interactive_loop(
             print(HELP_TEXT, file=output_stream, end="")
             continue
         if action == "submit":
+            # Conserva el comando original (con sus argumentos); solo separa
+            # la palabra `submit` de la línea introducida por el usuario.
             _, separator, command = line.strip().partition(" ")
             if not separator or not command.strip():
                 print("Uso: submit <comando>", file=output_stream)
@@ -141,6 +153,7 @@ def interactive_loop(
             if len(tokens) != 2:
                 print("Uso: status <job-id>", file=output_stream)
                 continue
+            # Consulta al runner, que delega la búsqueda al JobManager.
             job = job_runner.get_job(tokens[1])
             if job is None:
                 print(f"No se encontró el trabajo {tokens[1]}.", file=output_stream)
@@ -155,6 +168,7 @@ def interactive_loop(
                 print("Uso: list [estado]", file=output_stream)
                 continue
             try:
+                # El texto opcional se convierte al enum antes de pedir el listado.
                 status_filter = (
                     JobStatus[tokens[1].upper()] if len(tokens) == 2 else None
                 )
@@ -165,6 +179,7 @@ def interactive_loop(
                     file=output_stream,
                 )
                 continue
+            # JobManager convierte los objetos Job en una tabla legible.
             print(
                 job_runner.manager.format_table(
                     job_runner.list_jobs(status_filter)
@@ -176,6 +191,8 @@ def interactive_loop(
             if len(tokens) != 2:
                 print("Uso: cancel <job-id>", file=output_stream)
                 continue
+            # El runner dirige la cancelación al manager y, si está activo, al executor.
+            # `success` indica si la petición se aceptó; `message` explica el resultado.
             success, message = job_runner.cancel_job(tokens[1])
             label = "PASS" if success else "ERROR"
             print(f"[{label}] {message}", file=output_stream)
@@ -191,6 +208,7 @@ def interactive_loop(
             if job.status not in TERMINAL_STATUSES:
                 print("El trabajo sigue activo; intenta de nuevo más tarde.", file=output_stream)
                 continue
+            # El executor captura estos canales por separado; aquí solo se muestran.
             print(f"STDOUT:\n{job.stdout}", file=output_stream)
             print(f"STDERR:\n{job.stderr}", file=output_stream)
             continue
@@ -203,7 +221,7 @@ def interactive_loop(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Parse options and launch the requested local mode."""
+    """Interpreta opciones y selecciona demo, CLI interactiva o arranque simple."""
     parser = argparse.ArgumentParser(description="BeanRunner JobRunner local")
     demonstrations = parser.add_mutually_exclusive_group()
     demonstrations.add_argument(
@@ -221,6 +239,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="inicia la CLI local para enviar y controlar trabajos",
     )
+    # `arguments` contiene los indicadores --demo, --run-job-demo e --interactive.
     arguments = parser.parse_args(argv)
 
     if arguments.interactive:
