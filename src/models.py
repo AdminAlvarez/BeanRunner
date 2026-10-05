@@ -8,13 +8,18 @@ from uuid import uuid4
 class JobStatus(StrEnum):
     """Ciclo de vida oficial del trabajo según RF-06."""
 
+    # Aceptado, pero aún no tiene un proceso hijo asignado.
     QUEUED = "QUEUED"
+    # El proceso hijo está activo y siendo supervisado.
     RUNNING = "RUNNING"
+    # Estado terminal: proceso terminó con código de salida 0.
     SUCCEEDED = "SUCCEEDED"
+    # Estado terminal: hubo error al iniciar o el proceso terminó distinto de 0.
     FAILED = "FAILED"
+    # Estado terminal: usuario o cierre de CLI solicitó detenerlo.
     CANCELED = "CANCELED"
 
-
+#maquina de estados finitos
 _ALLOWED_TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
     JobStatus.QUEUED: frozenset({JobStatus.RUNNING, JobStatus.CANCELED}),
     JobStatus.RUNNING: frozenset(
@@ -32,19 +37,27 @@ def _utcnow() -> datetime:
 
 @dataclass(slots=True)
 class Job:
-    """Estructura de metadatos del trabajo."""
+    """Datos compartidos del trabajo entre runner, executor, manager y CLI."""
 
+    # Argumentos del programa: el primer elemento es el ejecutable.
     command: list[str]
+    # UUID usado para buscar el trabajo en los componentes de BeanRunner.
     id: str = field(default_factory=lambda: str(uuid4()))
+    # Estado consultado por runner, manager y CLI; inicia antes de ejecutar.
     status: JobStatus = JobStatus.QUEUED
     created_at: datetime = field(default_factory=_utcnow)
     started_at: datetime | None = None
     finished_at: datetime | None = None
     exit_code: int | None = None
+    # PID del sistema operativo, disponible solo después de iniciar el hijo.
     pid: int | None = None
+    # Detalle de error cuando no se puede iniciar o supervisar el proceso.
     error_message: str | None = None
+    # Canales se mantienen separados para que la CLI pueda mostrar cada uno.
     stdout: str = ""
     stderr: str = ""
+    # Señal interna leída por el monitor para asignar CANCELED al terminar.
+    cancel_requested: bool = False
 
     @property
     def is_terminal(self) -> bool:

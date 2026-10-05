@@ -1,1 +1,1 @@
-"""BeanRunner source package."""
+"""Paquete del código fuente de BeanRunner."""

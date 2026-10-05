@@ -24,7 +24,8 @@ class JobRunnerTests(unittest.TestCase):
 
         job = runner.submit_job([sys.executable, "-c", "print('runner ok')"])
         self.assertEqual(runner.jobs, {job.id: job})
-        self.assertEqual(runner.queue, [job.id])
+        self.assertNotIn(job.id, runner.queue)
+        self.assertIn(job.status, (JobStatus.RUNNING, JobStatus.SUCCEEDED))
 
     def test_successful_process_records_output_and_exit_code(self) -> None:
         runner = JobRunner()
@@ -52,11 +53,62 @@ class JobRunnerTests(unittest.TestCase):
         runner = JobRunner()
         job = runner.submit_job(["__beanrunner_missing_executable__"])
 
-        runner.execute_job(job.id)
-
         self.assertEqual(job.status, JobStatus.FAILED)
         self.assertIsNotNone(job.error_message)
         self.assertIsNotNone(job.finished_at)
+
+    def test_running_job_can_be_canceled_and_reaped(self) -> None:
+        runner = JobRunner()
+        job = runner.submit_job(
+            [sys.executable, "-c", "import time; time.sleep(30)"]
+        )
+        self.assertEqual(job.status, JobStatus.RUNNING)
+
+        canceled, message = runner.cancel_job(job.id)
+
+        self.assertTrue(canceled, message)
+        final_status = self.wait_for_completion(runner, job.id)
+        self.assertEqual(final_status, JobStatus.CANCELED)
+        self.assertEqual(job.status, JobStatus.CANCELED)
+        self.assertIsNotNone(job.exit_code)
+        self.assertIsNotNone(job.finished_at)
+        self.assertIsNone(runner.executor.get_process(job.id))
+
+    def test_runner_starts_queued_jobs_when_a_slot_frees(self) -> None:
+        runner = JobRunner(max_concurrency=1)
+        first = runner.submit_job(
+            [sys.executable, "-c", "import time; time.sleep(0.2)"]
+        )
+        second = runner.submit_job([sys.executable, "-c", "print('second')"])
+
+        self.assertEqual(first.status, JobStatus.RUNNING)
+        self.assertEqual(second.status, JobStatus.QUEUED)
+
+        first_status = self.wait_for_completion(runner, first.id)
+        second_status = self.wait_for_completion(runner, second.id)
+        self.assertEqual(first_status, JobStatus.SUCCEEDED)
+        self.assertEqual(second_status, JobStatus.SUCCEEDED)
+        self.assertEqual(first.status, JobStatus.SUCCEEDED)
+        self.assertEqual(second.status, JobStatus.SUCCEEDED)
+        self.assertEqual(second.stdout, "second\n")
+
+    def test_cancel_queued_job_does_not_start_it(self) -> None:
+        runner = JobRunner(max_concurrency=1)
+        first = runner.submit_job(
+            [sys.executable, "-c", "import time; time.sleep(30)"]
+        )
+        queued = runner.submit_job([sys.executable, "-c", "print('should not run')"])
+
+        canceled, message = runner.cancel_job(queued.id)
+
+        self.assertTrue(canceled, message)
+        self.assertEqual(queued.status, JobStatus.CANCELED)
+        self.assertIsNone(queued.pid)
+        self.assertTrue(runner.cancel_job(first.id)[0])
+        self.assertEqual(
+            self.wait_for_completion(runner, first.id),
+            JobStatus.CANCELED,
+        )
 
 
 if __name__ == "__main__":

@@ -1,94 +1,90 @@
-"""
-GESTIÓN Y CONTROL DEL CICLO DE VIDA DE LOS TRABAJOS
-(RF-09, RF-10)
-"""
+"""Consulta y cancela trabajos registrados por una instancia de JobRunner."""
 
 import logging
-import os
-import signal
 import threading
 from datetime import datetime, timezone
-from typing import Any
 
+from .executor import JobExecutor
 from .models import Job, JobStatus
+
 
 logger = logging.getLogger("JobManager")
 
+
 class JobManager:
+    """Ofrece consultas y cancelación sobre el almacenamiento del JobRunner.
+
+    No crea ni ejecuta trabajos: lee el diccionario compartido y delega la
+    terminación de procesos activos a JobExecutor.
     """
-    PARA CONSULTAR, LISTAR Y CANCELAR
-    TRABAJOS REGISTRADOS
-    """
-    def __init__(self, job_storage: dict[str, Job]) -> None:
+
+    def __init__(
+        self,
+        job_storage: dict[str, Job],
+        executor: JobExecutor,
+        lock: threading.RLock,
+    ) -> None:
+        # Estas referencias se comparten con JobRunner; no se hacen copias.
         self.jobs = job_storage
-        self._lock = threading.Lock()
+        self.executor = executor
+        self._lock = lock
+
+    def get_job(self, job_id: str) -> Job | None:
+        """Busca por ID y devuelve None si el trabajo no existe."""
+        with self._lock:
+            return self.jobs.get(job_id)
 
     def list_jobs(self, status_filter: JobStatus | None = None) -> list[Job]:
-        """
-        MANDA LA LISTA DE TRABAJOS
-        FILTRADO POR ESTADO
-        """
+        """Devuelve los trabajos y, si se indicó, filtra por estado."""
         with self._lock:
+            # Copiar los valores evita exponer directamente la vista del diccionario.
+            jobs = list(self.jobs.values())
             if status_filter is None:
-                return list(self.jobs.values())
-            return [job for job in self.jobs.values() if job.status == status_filter]
+                return jobs
+            return [job for job in jobs if job.status == status_filter]
 
     def format_table(self, jobs: list[Job]) -> str:
-        """
-        VISTA PARA LA CLI CON METADATOS PRINCIPALES
-        """
+        """Convierte metadatos de trabajos en una tabla para la CLI."""
         if not jobs:
-            return "No hay trabajos registrados"
+            return "No hay trabajos registrados."
 
-        header = f"{'JOB ID':<38} {'PID':<8} {'ESTADO':<12} {'COMANDO'}"
-        separator = "-" * 80
+        header = f"{'JOB ID':<36} {'PID':<8} {'ESTADO':<12} {'CÓDIGO':<8} COMANDO"
+        separator = "-" * len(header)
         lines = [header, separator]
 
         for job in jobs:
-            pid_str = str(job.pid) if job.pid is not None else "-"
-            cmd_str = " ".join(job.command)
-            lines.append(f"{job.id:<38} {pid_str:<8} {job.status.value:<12} {cmd_str}")
+            # PID y código aún no existen mientras el trabajo espera en cola.
+            pid = str(job.pid) if job.pid is not None else "-"
+            exit_code = str(job.exit_code) if job.exit_code is not None else "-"
+            command = " ".join(job.command)
+            lines.append(
+                f"{job.id:<36} {pid:<8} {job.status.value:<12} "
+                f"{exit_code:<8} {command}"
+            )
 
         return "\n".join(lines)
 
     def cancel_job(self, job_id: str) -> tuple[bool, str]:
-        """
-        SOLICITAR CANCELACIÓN DE TRABAJO EN COLA
-        O EJECUCIÓN Y RETORNAR LA TUPLA
-        """
+        """Cancela un trabajo en cola o delega la terminación al executor."""
         with self._lock:
             job = self.jobs.get(job_id)
-            if not job:
-                return False, f"No se encontró ningún trabajo con ID {job_id}"
+            if job is None:
+                return False, f"No se encontró ningún trabajo con ID {job_id}."
 
-            # Caso 1: trabajo en cola
             if job.status == JobStatus.QUEUED:
+                # Un trabajo en cola no tiene proceso que enviar a executor.cancel().
                 job.status = JobStatus.CANCELED
                 job.finished_at = datetime.now(timezone.utc).isoformat()
-                logger.info("Trabajo en cola %s cancelado exitosamente", job_id)
-                return True, f"Trabajo {job_id} en cola cancelado exitosamente"
+                logger.info("Trabajo en cola %s cancelado.", job_id)
+                return True, f"Trabajo {job_id} cancelado antes de ejecutarse."
 
-            # Caso 2: trabajo en ejecución
-            if job.status == JobStatus.RUNNING:
-                if job.pid is None:
-                    job.status = JobStatus.FAILED
-                    job.error_message = "Trabajo RUNNING sin PID registrado"
-                    return False, "Error: el trabajo no tiene PID registrado"
+            if job.status != JobStatus.RUNNING:
+                return (
+                    False,
+                    f"No se puede cancelar: el trabajo está en estado {job.status.value}.",
+                )
 
-                try:
-                    # se llama a syscall kill(pid, SIGTERM)
-                    os.kill(job.pid, signal.SIGTERM)
-                    job.status = JobStatus.CANCELED
-                    job.finished_at = datetime.now(timezone.utc).isoformat()
-                    logger.info("Señal SIGTERM enviada al PID %d (Job %s)", job.pid, job_id)
-                    return True, f"Señal de terminación enviada al PID {job.pid}. Estado: CANCELED"
-                except ProcessLookupError:
-                    # por si el proceso terminó antes de que llegue la señal
-                    job.status = JobStatus.FAILED
-                    job.finished_at = datetime.now(timezone.utc).isoformat()
-                    return False, f"El proceso con PID {job.pid} ya había acabado"
-                except PermissionError:
-                    return False, f"Permiso denegado al intentar enviar señal al PID {job.pid}"
-
-            # Caso 3: estados terminales
-            return False, f"No se puede cancelar debido a que ya está en estado {job.status.value}"
+            success, message = self.executor.cancel(job)
+            if success:
+                logger.info("Se solicitó cancelar el trabajo %s.", job_id)
+            return success, message
