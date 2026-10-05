@@ -141,7 +141,6 @@ project-management/          Material de gestión del proyecto
 ## Estado de entrega
 
 El prototipo y sus pruebas automatizadas se han verificado en Windows con
-Python 3.14.3. La revisión técnica está dirigida a Linux/Ubuntu/WSL2; el equipo
-debe ejecutar y conservar también el resultado en esa plataforma antes de
-presentar la evidencia como validación Linux. Consulta el reporte de
-verificación para conocer el entorno exacto de cada ejecución.
+Python 3.14.3 y en Ubuntu sobre WSL2 con Python 3.14.4. Consulta los reportes
+en [`verif/results/`](verif/results/) para conocer los comandos, resultados y
+alcance de cada ejecución.
