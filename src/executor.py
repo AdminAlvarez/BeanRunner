@@ -45,12 +45,12 @@ class JobExecutor:
             # Si el ejecutable no existe, el trabajo falla antes de tener PID.
             job.status = JobStatus.FAILED
             job.error_message = str(error)
-            job.finished_at = datetime.now(timezone.utc).isoformat()
+            job.finished_at = datetime.now(timezone.utc)
             logger.error("No se pudo iniciar el trabajo %s: %s", job.id, error)
             return False
 
         job.pid = process.pid
-        job.started_at = datetime.now(timezone.utc).isoformat()
+        job.started_at = datetime.now(timezone.utc)
         job.status = JobStatus.RUNNING
 
         # Registrar el proceso permite a cancel() localizarlo usando el ID del job.
@@ -122,7 +122,7 @@ class JobExecutor:
             job.stdout = stdout
             job.stderr = stderr
             job.exit_code = process.returncode
-            job.finished_at = datetime.now(timezone.utc).isoformat()
+            job.finished_at = datetime.now(timezone.utc)
 
             if job.cancel_requested:
                 job.status = JobStatus.CANCELED
@@ -133,7 +133,7 @@ class JobExecutor:
         except OSError as error:
             job.status = JobStatus.FAILED
             job.error_message = str(error)
-            job.finished_at = datetime.now(timezone.utc).isoformat()
+            job.finished_at = datetime.now(timezone.utc)
             logger.exception("Falló la recolección del resultado del trabajo %s", job.id)
         finally:
             # Al retirar el proceso se libera un slot; el callback permite llenar la cola.
