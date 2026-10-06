@@ -43,7 +43,7 @@ class JobRunner:
         with self._lock:
             # El submitter solo registra; el runner decide cuándo ejecutarlo.
             # El ID retornado aquí no se necesita: está disponible en job.id.
-            _, job = self.submitter.submit_job(command)
+            job = self.submitter.submit_job(command)
             self.queue.append(job.id)
             self._start_queued_jobs()
             return job
